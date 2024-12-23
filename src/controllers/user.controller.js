@@ -4,6 +4,7 @@ import {User} from "../models/user.models.js"
 import {uploadOnCloudinary} from "../utils/Cloudinary.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import jwt from "jsonwebtoken"
+import mongoose from "mongoose";
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -135,7 +136,7 @@ const loginUser = asyncHandler( async (req, res) => {
     .cookie("refreshToken", refreshToken, options)
     .json(
         new ApiResponse(200, {
-            ...loggedInUser, accessToken, refreshToken
+            user: loggedInUser.username, accessToken, refreshToken
         }, "User logged in successfully")
     )
 })
@@ -213,7 +214,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     if(!user){
         throw new ApiError(400, "User not logged in")
     }
-    const isPassCorrect = user.isPasswordCorrect(oldPassword);
+    const isPassCorrect = await user.isPasswordCorrect(oldPassword);
     if(!isPassCorrect){
         throw new ApiError(400, "Invalid password");
     }
@@ -359,7 +360,7 @@ const getUserChannelProfile = asyncHandler(async(req, res) => {
                     $size: "$subscribedTo"
                 },
                 isSubscribed: {
-                    $condition: {
+                    $cond: {
                         if: {$in: [req.user?._id, "$subscribers.subscriber"]},
                         then: true,
                         else: false
@@ -438,7 +439,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
     return res
     .status(200)
     .json(
-        new ApiResponse(200, user[0].watchHistory, "Watch history fetched successfully")
+        new ApiResponse(200, user[0], "Watch history fetched successfully")
     )
 })
 
