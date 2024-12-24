@@ -3,44 +3,71 @@ import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {uploadOnCloudinary, deleteFromCloudinary} from "../utils/Cloudinary.js"
 import {Video} from "../models/video.models.js"
-import { User } from "../models/user.models.js"
 import mongoose from "mongoose"
 
 const getAllVideos = asyncHandler(async(req, res) => {
-    // const {page = 1, limit = 10, query, sortBy, sortType, userId} = req.query;
+    const {page = 1, limit = 10, query, sortBy, sortType, userId} = req.query;
 
-    // if(!userId){
-    //     throw new ApiError(401, "Invalid userid")
-    // }
+    if(!userId){
+        throw new ApiError(401, "Invalid userid")
+    }
 
-    // // const user = await User.findById(userId);
-    // // console.log(user)
-    // // const owner = await Video.findOne({owner: userId})
-    // // console.log(owner)
+    const videos = await Video.aggregate([
+        {
+            $match: {
+                $or: [
+                    {title: {$regex: query, $options: "i"}},
+                    {description: {$regex: query, $options: "i"}}
+                ]
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "videoOwner"
+            }
+        },
+        {
+            $unwind: "$videoOwner"
+        },
+        {
+            $project: {
+                videoFile: 1,
+                thumbnail: 1,
+                title: 1,
+                description: 1,
+                duration: 1,
+                views: 1,
+                videoOwner: {
+                    username: 1,
+                    fullName: 1,
+                    avatar: 1,
+                }
+            }
+        },
+        {
+            $sort: {
+                [sortBy] : sortType === "asc" ? 1 : -1,
+            }
+        },
+        {
+            $skip: (page - 1)*limit
+        },
+        {
+            $limit: parseInt(limit)
+        }
+    ])
+    console.log(videos);
+    // console.log(videos[0].videoOwner)
 
-    // const vid = await User.aggregate([
-    //     {
-    //         $match: {
-    //             _id: new mongoose.Schema.ObjectId(userId)
-    //         }
-    //     },
-    //     {
-    //         $lookup: {
-    //             from: "videos",
-    //             localField: "_id",
-    //             foreignField: "owner",
-    //             as: "allVideos",
-    //         }
-    //     }
-    // ])
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, videos, "Videos fetched successfully")
+    )
 
-    // console.log(vid);
-
-    // return res
-    // .status(200)
-    // .json(
-    //     new ApiResponse(200, vid, "Fetched all videos successfully")
-    // )
 })
 
 const publishAVideo = asyncHandler(async(req, res) => {
